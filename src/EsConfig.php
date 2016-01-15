@@ -5,7 +5,7 @@ namespace EsConfig;
 class EsConfig
 {
     const VERSION = '1.0.0';
-    const CONFIG_FILE = '~/.anonymiserc';
+    const CONFIG_FILE = '.esconfig.json';
 
     // --------------------------------------------------------------------------
 
@@ -77,9 +77,96 @@ class EsConfig
 
     // --------------------------------------------------------------------------
 
+    /**
+     * Executes a request to the server
+     * @param  string $sMethod The type of request
+     * @param  string $sUrl    The URL of the request
+     * @param  array  $aData   Any data to send with the request (as JSON)
+     * @return \stdClass
+     */
+    protected static function request($sMethod, $sUrl, $aData = array())
+    {
+        //  Encode the data as JSON tos end to the server
+        $sData = json_encode($aData);
+
+        //  Start cURL
+        $oCh = curl_init();
+
+        curl_setopt($oCh,CURLOPT_URL, $sUrl);
+        curl_setopt($oCh, CURLOPT_CUSTOMREQUEST, $sMethod);
+        curl_setopt($oCh, CURLOPT_RETURNTRANSFER, true);
+
+        if (!empty($sData)) {
+            curl_setopt($oCh, CURLOPT_POSTFIELDS, $sData);
+            curl_setopt($oCh, CURLOPT_HTTPHEADER, array(
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($sData))
+            );
+        }
+
+        $sResponse = curl_exec($oCh);
+        curl_close($oCh);
+
+        return json_decode($sResponse);
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Execute a GET request
+     * @param  string $sUrl  The URL to GET
+     * @return \stdClass
+     */
+    protected static function get($sUrl) {
+        return self::request('GET', $sUrl);
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Execute a POST request
+     * @param  string $sUrl  The URL to POST to
+     * @param  array  $aData An array of data to POST
+     * @return \stdClass
+     */
+    protected static function post($sUrl, $aData = array()) {
+        return self::request('POST', $sUrl, $aData);
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Execute a DELETE request
+     * @param  string $sUrl  The URL to DELETE to
+     * @param  array  $aData An array of data to DELETE
+     * @return \stdClass
+     */
+    protected static function delete($sUrl, $aData = array()) {
+        return self::request('DELETE', $sUrl, $aData);
+    }
+
+    // --------------------------------------------------------------------------
+
     protected static function getConfig()
     {
+        $sPath = getcwd() . DIRECTORY_SEPARATOR . self::CONFIG_FILE;
+        self::writeLn('Looking for config file: ' . $sPath);
 
+        if (file_exists($sPath)) {
+
+            $sConfig = file_get_contents($sPath);
+            $oConfig = json_decode($sConfig);
+
+            if (empty($oConfig)) {
+                throw new \Exception('Invalid config file.', 1);
+            }
+
+            return $oConfig;
+
+        } else {
+
+            throw new \Exception('Could not find config file.', 1);
+        }
     }
 
     // --------------------------------------------------------------------------
@@ -94,11 +181,20 @@ class EsConfig
         self::writeLn('[Nuke 💣]');
         self::writeLn();
 
-        $oConfig = self::getConfig();
-        if (empty($oConfig)) {
-            self::writeLn('Could not find .esconfig.json file');
+        try {
+
+            $oConfig   = self::getConfig();
+            $sUrl      = $oConfig->host . '/';
+            $oResponse = self::delete($sUrl . '_all');
+
+            self::writeLn('Done; response from server:');
+            self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
             self::writeLn();
-            return;
+
+        } catch (\Exception $e) {
+
+            self::writeLn('[ERROR: ' . $e->getMessage() . ']');
+            self::writeLn();
         }
     }
 
@@ -114,11 +210,28 @@ class EsConfig
         self::writeLn('[Reset]');
         self::writeLn();
 
-        $oConfig = self::getConfig();
-        if (empty($oConfig)) {
-            self::writeLn('Could not find .esconfig.json file');
+        try {
+
+            $oConfig = self::getConfig();
+            $sUrl    = $oConfig->host . '/';
+
+            foreach ($oConfig->indexes as $oIndex) {
+
+                self::writeLn('Deleting index [' . $oIndex->name . ']');
+                $oResponse = self::delete($sUrl . $oIndex->name);
+                self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
+
+                self::writeLn('Creating  index [' . $oIndex->name . ']');
+                $oResponse = self::post($sUrl . $oIndex->name, array('mappings' => $oIndex->mappings));
+                self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
+
+                self::writeLn();
+            }
+
+        } catch (\Exception $e) {
+
+            self::writeLn('[ERROR: ' . $e->getMessage() . ']');
             self::writeLn();
-            return;
         }
     }
 
@@ -134,11 +247,55 @@ class EsConfig
         self::writeLn('[Warm]');
         self::writeLn();
 
-        $oConfig = self::getConfig();
-        if (empty($oConfig)) {
-            self::writeLn('Could not find .esconfig.json file');
+        try {
+
+            $oConfig  = self::getConfig();
+            $sCommand = !empty($oConfig->warm) ? $oConfig->warm : null;
+
+            if (empty($sCommand)) {
+                throw new \Exception('No warm up script defined', 1);
+            }
+
+            self::writeLn('Executing command: ' . $sCommand);
+
+            $aDescriptorSpec = array(
+               0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
+               1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
+               2 => array("file", "/tmp/error-output.txt", "a") // stderr is a file to write to
+            );
+
+            $process = proc_open(
+                $sCommand,
+                $aDescriptorSpec,
+                $aPipes,
+                getcwd()
+            );
+
+            if (is_resource($process)) {
+
+                // $aPipes now looks like this:
+                // 0 => writeable handle connected to child stdin
+                // 1 => readable handle connected to child stdout
+                // Any error output will be appended to /tmp/error-output.txt
+
+                $sOutput = stream_get_contents($aPipes[1]);
+                $aOutput = explode("\n", $sOutput);
+
+                foreach ($aOutput as $sLine) {
+                    self::writeLn($sLine);
+                }
+
+                fclose($aPipes[1]);
+
+                // It is important that you close any pipes before calling
+                // proc_close in order to avoid a deadlock
+                $return_value = proc_close($process);
+            }
+
+        } catch (\Exception $e) {
+
+            self::writeLn('[ERROR: ' . $e->getMessage() . ']');
             self::writeLn();
-            return;
         }
     }
 }

@@ -21,7 +21,7 @@ Calls the warmup command described in `.esconfig.json`.
 ## Sample `.esconfig.json` file
 ```json
 {
-    "hosts": ["localhost:9200"],
+    "host": "localhost:9200",
     "warm": "php ./warm_es.php",
     "indexes": [
         {
@@ -56,3 +56,5 @@ Calls the warmup command described in `.esconfig.json`.
 
 ## RoadMap
 - [ ] Use symfony console component
+- [ ] Use Guzzle or similar
+- [ ] Better handling of responses from ES
