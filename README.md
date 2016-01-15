@@ -4,6 +4,13 @@ A simple tool for managing simple Elasticsearch instances. The tool looks for a 
 the definitions in that to create indexes and their mappings. It is also capable of running a warmup script to populate
 these indexes if needed.
 
+## Installation
+
+Install manually by cloning and ensuring the `dist/esconfig.phar` binary is in your `$PATH`; or use [Homebrew](http://brew.sh):
+
+    brew tap hellopablo/utilities
+    brew install hellopablo/utilities/esconfig
+
 ## Commands
 
 ### `help`
