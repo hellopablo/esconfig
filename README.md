@@ -25,7 +25,7 @@ Calls the warmup command described in `.esconfig.json`.
     "warm": "php ./warm_es.php",
     "indexes": [
         {
-            "name": "my-index";
+            "name": "my-index",
             "mappings": {
                 "my-item": {
                     "properties": {
@@ -37,7 +37,7 @@ Calls the warmup command described in `.esconfig.json`.
             }
         },
         {
-            "name": "another-index";
+            "name": "another-index",
             "mappings": {
                 "another-item": {
                     "properties": {
