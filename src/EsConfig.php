@@ -4,8 +4,10 @@ namespace EsConfig;
 
 class EsConfig
 {
-    const VERSION = '1.0.0';
-    const CONFIG_FILE = '.esconfig.json';
+    const VERSION             = '1.0.0';
+    const CONFIG_FILE         = '.esconfig.json';
+    const ENVIRONMENT_FILE    = '.esconfig.environment';
+    const DEFAULT_ENVIRONMENT = 'DEVELOPMENT';
 
     // --------------------------------------------------------------------------
 
@@ -69,9 +71,9 @@ class EsConfig
         self::writeLn();
         self::writeLn('Available Commands:');
         self::writeLn();
-        self::writeLn('nuke      Destroy all data in the cluster');
-        self::writeLn('reset     Delete all indexes and recreate them with mappings');
-        self::writeLn('warm      Index all the content');
+        self::writeLn('nuke  Destroy all data in the cluster');
+        self::writeLn('reset Delete all indexes and recreate them with mappings');
+        self::writeLn('warm  Index all the content');
         self::writeLn();
     }
 
@@ -147,10 +149,13 @@ class EsConfig
 
     // --------------------------------------------------------------------------
 
+    /**
+     * Returns the configuration file
+     * @return stdClass
+     */
     protected static function getConfig()
     {
         $sPath = getcwd() . DIRECTORY_SEPARATOR . self::CONFIG_FILE;
-        self::writeLn('Looking for config file: ' . $sPath);
 
         if (file_exists($sPath)) {
 
@@ -158,14 +163,52 @@ class EsConfig
             $oConfig = json_decode($sConfig);
 
             if (empty($oConfig)) {
-                throw new \Exception('Invalid config file.', 1);
+                throw new \Exception('Invalid config file [' . $sPath . '].', 1);
             }
 
             return $oConfig;
 
         } else {
 
-            throw new \Exception('Could not find config file.', 1);
+            throw new \Exception('Could not find config file [' . $sPath . '].', 1);
+        }
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Returns the current environment
+     * @param  array $aArgs The arguments passed to the script
+     * @return stdClass
+     */
+    protected static function getEnvironment($aArgs)
+    {
+        $oConfig  = self::getConfig();
+        $sEnvPath = getcwd() . DIRECTORY_SEPARATOR . self::ENVIRONMENT_FILE;
+
+        if (file_exists($sEnvPath)) {
+            $sEnvFile = strtoupper(trim(file_get_contents($sEnvPath)));
+        }
+
+        //  Explicitly set
+        if (!empty($aArgs[2])) {
+
+            return strtoupper($aArgs[2]);
+
+        // .esconfig.environment file
+        } elseif (!empty($sEnvFile)) {
+
+            return $sEnvFile;
+
+        //  Default environment from .esconfig.json
+        } elseif (!empty($oConfig->default_environment)) {
+
+            return strtoupper($oConfig->default_environment);
+
+        //  Default environment
+        } else {
+
+            return self::DEFAULT_ENVIRONMENT;
         }
     }
 
@@ -183,8 +226,16 @@ class EsConfig
 
         try {
 
-            $oConfig   = self::getConfig();
-            $sUrl      = $oConfig->host . '/';
+            $oConfig = self::getConfig();
+            $sEnv    = self::getEnvironment($aArgs);
+
+            self::writeLn('Detected environment: ' . $sEnv);
+
+            if (empty($oConfig->host->{$sEnv})) {
+                throw new \Exception('No host defined for environment "' . $sEnv . '"', 1);
+            }
+
+            $sUrl      = $oConfig->host->{$sEnv} . '/';
             $oResponse = self::delete($sUrl . '_all');
 
             self::writeLn('Done; response from server:');
@@ -213,7 +264,15 @@ class EsConfig
         try {
 
             $oConfig = self::getConfig();
-            $sUrl    = $oConfig->host . '/';
+            $sEnv    = self::getEnvironment($aArgs);
+
+            self::writeLn('Detected environment: ' . $sEnv);
+
+            if (empty($oConfig->host->{$sEnv})) {
+                throw new \Exception('No host defined for environment "' . $sEnv . '"', 1);
+            }
+
+            $sUrl = $oConfig->host->{$sEnv} . '/';
 
             foreach ($oConfig->indexes as $oIndex) {
 
@@ -249,12 +308,22 @@ class EsConfig
 
         try {
 
-            $oConfig  = self::getConfig();
-            $sCommand = !empty($oConfig->warm) ? $oConfig->warm : null;
+            $oConfig = self::getConfig();
+            $sEnv    = self::getEnvironment($aArgs);
 
-            if (empty($sCommand)) {
-                throw new \Exception('No warm up script defined', 1);
+            self::writeLn('Detected environment: ' . $sEnv);
+
+            if (empty($oConfig->host->{$sEnv})) {
+                throw new \Exception('No host defined for environment "' . $sEnv . '"', 1);
             }
+
+            if (empty($oConfig->warm->{$sEnv})) {
+                throw new \Exception('No warm up defined for environment "' . $sEnv . '"', 1);
+            }
+
+            //  Parse in special variables
+            $sCommand = $oConfig->warm->{$sEnv};
+            $sCommand = preg_replace('/\{\{__HOST__\}\}/', $oConfig->host->{$sEnv}, $sCommand);
 
             self::writeLn('Executing command: ' . $sCommand);
 
