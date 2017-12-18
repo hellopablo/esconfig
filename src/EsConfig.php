@@ -4,7 +4,7 @@ namespace EsConfig;
 
 class EsConfig
 {
-    const VERSION             = '2.1.0';
+    const VERSION             = '2.1.1';
     const CONFIG_FILE         = '.esconfig.json';
     const ENVIRONMENT_FILE    = '.esconfig.environment';
     const DEFAULT_ENVIRONMENT = 'DEVELOPMENT';
