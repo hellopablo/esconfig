@@ -4,7 +4,7 @@ namespace EsConfig;
 
 class EsConfig
 {
-    const VERSION             = '2.0.0';
+    const VERSION             = '2.1.0';
     const CONFIG_FILE         = '.esconfig.json';
     const ENVIRONMENT_FILE    = '.esconfig.environment';
     const DEFAULT_ENVIRONMENT = 'DEVELOPMENT';
@@ -12,8 +12,18 @@ class EsConfig
     // --------------------------------------------------------------------------
 
     /**
+     * The version of ElasticSearch being queried
+     * @var null
+     */
+    private static $sVersion = null;
+
+    // --------------------------------------------------------------------------
+
+    /**
      * Runs the command
+     *
      * @param  array $aArgs The arguments passed to the script
+     *
      * @return void
      */
     public static function go($aArgs)
@@ -37,7 +47,9 @@ class EsConfig
 
     /**
      * Write text to the console
+     *
      * @param  string $sText the text to write
+     *
      * @return void
      */
     protected static function write($sText = '')
@@ -49,7 +61,9 @@ class EsConfig
 
     /**
      * Write text to the console and move to a new line
+     *
      * @param  string $sText The text to write
+     *
      * @return void
      */
     protected static function writeLn($sText = '')
@@ -81,12 +95,14 @@ class EsConfig
 
     /**
      * Executes a request to the server
+     *
      * @param  string $sMethod The type of request
      * @param  string $sUrl    The URL of the request
      * @param  array  $aData   Any data to send with the request (as JSON)
+     *
      * @return \stdClass
      */
-    protected static function request($sMethod, $sUrl, $aData = array())
+    protected static function request($sMethod, $sUrl, $aData = [])
     {
         //  Encode the data as JSON tos end to the server
         $sData = json_encode($aData);
@@ -94,15 +110,19 @@ class EsConfig
         //  Start cURL
         $oCh = curl_init();
 
-        curl_setopt($oCh,CURLOPT_URL, $sUrl);
+        curl_setopt($oCh, CURLOPT_URL, $sUrl);
         curl_setopt($oCh, CURLOPT_CUSTOMREQUEST, $sMethod);
         curl_setopt($oCh, CURLOPT_RETURNTRANSFER, true);
 
         if (!empty($sData)) {
             curl_setopt($oCh, CURLOPT_POSTFIELDS, $sData);
-            curl_setopt($oCh, CURLOPT_HTTPHEADER, array(
-                'Content-Type: application/json',
-                'Content-Length: ' . strlen($sData))
+            curl_setopt(
+                $oCh,
+                CURLOPT_HTTPHEADER,
+                [
+                    'Content-Type: application/json',
+                    'Content-Length: ' . strlen($sData),
+                ]
             );
         }
 
@@ -116,10 +136,13 @@ class EsConfig
 
     /**
      * Execute a GET request
-     * @param  string $sUrl  The URL to GET
+     *
+     * @param  string $sUrl The URL to GET
+     *
      * @return \stdClass
      */
-    protected static function get($sUrl) {
+    protected static function get($sUrl)
+    {
         return self::request('GET', $sUrl);
     }
 
@@ -127,23 +150,44 @@ class EsConfig
 
     /**
      * Execute a POST request
+     *
      * @param  string $sUrl  The URL to POST to
      * @param  array  $aData An array of data to POST
+     *
      * @return \stdClass
      */
-    protected static function post($sUrl, $aData = array()) {
+    protected static function post($sUrl, $aData = [])
+    {
         return self::request('POST', $sUrl, $aData);
     }
 
     // --------------------------------------------------------------------------
 
     /**
-     * Execute a DELETE request
-     * @param  string $sUrl  The URL to DELETE to
-     * @param  array  $aData An array of data to DELETE
+     * Execute a PUT request
+     *
+     * @param  string $sUrl  The URL to PUT to
+     * @param  array  $aData An array of data to PUT
+     *
      * @return \stdClass
      */
-    protected static function delete($sUrl, $aData = array()) {
+    protected static function put($sUrl, $aData = [])
+    {
+        return self::request('PUT', $sUrl, $aData);
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Execute a DELETE request
+     *
+     * @param  string $sUrl  The URL to DELETE to
+     * @param  array  $aData An array of data to DELETE
+     *
+     * @return \stdClass
+     */
+    protected static function delete($sUrl, $aData = [])
+    {
         return self::request('DELETE', $sUrl, $aData);
     }
 
@@ -151,7 +195,8 @@ class EsConfig
 
     /**
      * Returns the configuration file
-     * @return stdClass
+     * @throws \Exception
+     * @return \stdClass
      */
     protected static function getConfig()
     {
@@ -178,8 +223,10 @@ class EsConfig
 
     /**
      * Returns the current environment
+     *
      * @param  array $aArgs The arguments passed to the script
-     * @return stdClass
+     *
+     * @return string
      */
     protected static function getEnvironment($aArgs)
     {
@@ -195,17 +242,17 @@ class EsConfig
 
             return strtoupper($aArgs[2]);
 
-        // .esconfig.environment file
+            // .esconfig.environment file
         } elseif (!empty($sEnvFile)) {
 
             return $sEnvFile;
 
-        //  Default environment from .esconfig.json
+            //  Default environment from .esconfig.json
         } elseif (!empty($oConfig->default_environment)) {
 
             return strtoupper($oConfig->default_environment);
 
-        //  Default environment
+            //  Default environment
         } else {
 
             return self::DEFAULT_ENVIRONMENT;
@@ -216,8 +263,10 @@ class EsConfig
 
     /**
      * Nuke the cluster
+     *
      * @param  array $aArgs The arguments passed to the script
-     * @return vpid
+     *
+     * @return void
      */
     protected static function nuke($aArgs)
     {
@@ -238,8 +287,11 @@ class EsConfig
             $sUrl      = $oConfig->host->{$sEnv} . '/';
             $oResponse = self::delete($sUrl . '_all');
 
-            self::writeLn('Done; response from server:');
-            self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
+            if (!empty($oResponse->error)) {
+                self::writeln('Failed: ' . $oResponse->error->type . ': ' . $oResponse->error->reason);
+            } else {
+                self::writeln('Success');
+            }
             self::writeLn();
 
         } catch (\Exception $e) {
@@ -253,8 +305,10 @@ class EsConfig
 
     /**
      * Reset the cluster
+     *
      * @param  array $aArgs The arguments passed to the script
-     * @return vpid
+     *
+     * @return void
      */
     protected static function reset($aArgs)
     {
@@ -273,16 +327,34 @@ class EsConfig
             }
 
             $sUrl = $oConfig->host->{$sEnv} . '/';
+            static::detectClientVersion($sUrl);
 
             foreach ($oConfig->indexes as $oIndex) {
 
                 self::writeLn('Deleting index [' . $oIndex->name . ']');
                 $oResponse = self::delete($sUrl . $oIndex->name);
-                self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
+                if (!empty($oResponse->error)) {
+                    self::writeln('Failed: ' . $oResponse->error->type . ': ' . $oResponse->error->reason);
+                } else {
+                    self::writeln('Success');
+                }
 
                 self::writeLn('Creating  index [' . $oIndex->name . ']');
-                $oResponse = self::post($sUrl . $oIndex->name, array('mappings' => $oIndex->mappings));
-                self::writeLn(json_encode($oResponse, JSON_PRETTY_PRINT));
+
+                /**
+                 * The HTTP method type for setting mappings was changed in version 5.0 from POST to PUT
+                 */
+                if (version_compare(static::$sVersion, '5.0.0')) {
+                    $oResponse = self::put($sUrl . $oIndex->name, ['mappings' => $oIndex->mappings]);
+                } else {
+                    $oResponse = self::post($sUrl . $oIndex->name, ['mappings' => $oIndex->mappings]);
+                }
+
+                if (!empty($oResponse->error)) {
+                    self::writeln('Failed: ' . $oResponse->error->type . ': ' . $oResponse->error->reason);
+                } else {
+                    self::writeln('Success');
+                }
 
                 self::writeLn();
             }
@@ -298,8 +370,10 @@ class EsConfig
 
     /**
      * WArm the cluster
+     *
      * @param  array $aArgs The arguments passed to the script
-     * @return vpid
+     *
+     * @return void
      */
     protected static function warm($aArgs)
     {
@@ -327,11 +401,11 @@ class EsConfig
 
             self::writeLn('Executing command: ' . $sCommand);
 
-            $aDescriptorSpec = array(
-               0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-               1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
-               2 => array("file", "/tmp/error-output.txt", "a") // stderr is a file to write to
-            );
+            $aDescriptorSpec = [
+                0 => ["pipe", "r"],  // stdin is a pipe that the child will read from
+                1 => ["pipe", "w"],  // stdout is a pipe that the child will write to
+                2 => ["file", "/tmp/error-output.txt", "a"] // stderr is a file to write to
+            ];
 
             $process = proc_open(
                 $sCommand,
@@ -358,7 +432,7 @@ class EsConfig
 
                 // It is important that you close any pipes before calling
                 // proc_close in order to avoid a deadlock
-                $return_value = proc_close($process);
+                proc_close($process);
             }
 
         } catch (\Exception $e) {
@@ -366,5 +440,24 @@ class EsConfig
             self::writeLn('[ERROR: ' . $e->getMessage() . ']');
             self::writeLn();
         }
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
+     * Detects the version of the ElasticSearch instance being queried
+     *
+     * @param string $sUrl The URL to the instance
+     *
+     * @throws \Exception
+     */
+    private static function detectClientVersion($sUrl)
+    {
+        $oResponse = static::get($sUrl);
+        if (empty($oResponse)) {
+            throw new \Exception('Failed to query ElasticSearch for version details');
+        }
+
+        static::$sVersion = $oResponse->version->number;
     }
 }
