@@ -4,7 +4,7 @@ namespace EsConfig;
 
 class EsConfig
 {
-    const VERSION             = '2.1.1';
+    const VERSION             = '2.2.0';
     const CONFIG_FILE         = '.esconfig.json';
     const ENVIRONMENT_FILE    = '.esconfig.environment';
     const DEFAULT_ENVIRONMENT = 'DEVELOPMENT';
@@ -80,8 +80,8 @@ class EsConfig
     protected static function help()
     {
         self::writeLn('This tool makes it simple to manage a basic elastic search setup.');
-        self::writeLn('Through the use of a json file easily create index mappings and');
-        self::writeLn('populate with data.');
+        self::writeLn('Through the use of a json file easily create index mappings, settings');
+        self::writeLn('and populate with data.');
         self::writeLn();
         self::writeLn('Available Commands:');
         self::writeLn();
@@ -341,13 +341,28 @@ class EsConfig
 
                 self::writeLn('Creating  index [' . $oIndex->name . ']');
 
+                $oSettings = !empty($oIndex->settings) ? $oIndex->settings : (object) [];
+                $oMappings = !empty($oIndex->mappings) ? $oIndex->mappings : (object) [];
+
                 /**
                  * The HTTP method type for setting mappings was changed in version 5.0 from POST to PUT
                  */
                 if (version_compare(static::$sVersion, '5.0.0')) {
-                    $oResponse = self::put($sUrl . $oIndex->name, ['mappings' => $oIndex->mappings]);
+                    $oResponse = self::put(
+                        $sUrl . $oIndex->name,
+                        [
+                            'settings' => $oSettings,
+                            'mappings' => $oMappings,
+                        ]
+                    );
                 } else {
-                    $oResponse = self::post($sUrl . $oIndex->name, ['mappings' => $oIndex->mappings]);
+                    $oResponse = self::post(
+                        $sUrl . $oIndex->name,
+                        [
+                            'settings' => $oSettings,
+                            'mappings' => $oMappings,
+                        ]
+                    );
                 }
 
                 if (!empty($oResponse->error)) {

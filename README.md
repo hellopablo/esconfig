@@ -1,8 +1,6 @@
 # ESConfig
 
-A simple tool for managing simple Elasticsearch instances. The tool looks for a file named `.esconfig.json` and uses
-the definitions in that to create indexes and their mappings. It is also capable of running a warmup script to populate
-these indexes if needed.
+A simple tool for managing simple Elasticsearch instances. The tool looks for a file named `.esconfig.json` and uses the definitions in that to create indexes and their mappings. It is also capable of running a warmup script to populate these indexes if needed.
 
 
 ## Installation
@@ -58,6 +56,7 @@ You can define which environment is being used using any of the following method
     "indexes": [
         {
             "name": "my-index",
+            "settings": {},
             "mappings": {
                 "my-item": {
                     "properties": {
@@ -70,6 +69,7 @@ You can define which environment is being used using any of the following method
         },
         {
             "name": "another-index",
+            "settings": {},
             "mappings": {
                 "another-item": {
                     "properties": {
@@ -89,4 +89,3 @@ You can define which environment is being used using any of the following method
 ## RoadMap
 - [ ] Use symfony console component
 - [ ] Use Guzzle or similar
-- [ ] Better handling of responses from ES
