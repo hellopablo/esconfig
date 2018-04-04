@@ -1,0 +1,15 @@
+{
+    "name": "hellopablo/esconfig",
+    "description": "A simple tool for managing simple Elasticsearch instances.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Pablo de la Peña",
+            "email": "pablo@hellopablo.co.uk"
+        }
+    ],
+    "require": {},
+    "bin": [
+        "dist/esconfig.phar"
+    ]
+}

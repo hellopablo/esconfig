@@ -1,3 +1,5 @@
 /.idea
 /.esconfig.json
 /.esconfig.environment
+
+/vendor/
