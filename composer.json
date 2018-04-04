@@ -10,6 +10,6 @@
     ],
     "require": {},
     "bin": [
-        "dist/esconfig.phar"
+        "dist/esconfig"
     ]
 }
