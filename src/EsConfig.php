@@ -13,6 +13,7 @@ class EsConfig
 
     /**
      * The version of ElasticSearch being queried
+     *
      * @var null
      */
     private static $sVersion = null;
@@ -22,7 +23,7 @@ class EsConfig
     /**
      * Runs the command
      *
-     * @param  array $aArgs The arguments passed to the script
+     * @param array $aArgs The arguments passed to the script
      *
      * @return void
      */
@@ -36,6 +37,14 @@ class EsConfig
         self::writeLn();
 
         $sMethod = !empty($aArgs[1]) ? $aArgs[1] : 'help';
+        $sMethod = preg_replace_callback(
+            '/\-([a-z])/',
+            function ($aInput) {
+                return strtoupper($aInput[1]);
+            },
+            $sMethod
+        );
+
         if (method_exists(get_class(), $sMethod)) {
             self::{$sMethod}($aArgs);
         } else {
@@ -48,7 +57,7 @@ class EsConfig
     /**
      * Write text to the console
      *
-     * @param  string $sText the text to write
+     * @param string $sText the text to write
      *
      * @return void
      */
@@ -62,7 +71,7 @@ class EsConfig
     /**
      * Write text to the console and move to a new line
      *
-     * @param  string $sText The text to write
+     * @param string $sText The text to write
      *
      * @return void
      */
@@ -75,6 +84,7 @@ class EsConfig
 
     /**
      * Outputs some help information
+     *
      * @return void
      */
     protected static function help()
@@ -85,9 +95,10 @@ class EsConfig
         self::writeLn();
         self::writeLn('Available Commands:');
         self::writeLn();
-        self::writeLn('nuke  Destroy all data in the cluster');
-        self::writeLn('reset Delete all indexes and recreate them with mappings');
-        self::writeLn('warm  Index all the content');
+        self::writeLn('nuke         Destroy all data in the cluster');
+        self::writeLn('reset        Delete all indexes and recreate them with mappings');
+        self::writeLn('reset-ingest Delete all ingest pipelines and recreate them');
+        self::writeLn('warm         Index all the content');
         self::writeLn();
     }
 
@@ -96,9 +107,9 @@ class EsConfig
     /**
      * Executes a request to the server
      *
-     * @param  string $sMethod The type of request
-     * @param  string $sUrl    The URL of the request
-     * @param  array  $aData   Any data to send with the request (as JSON)
+     * @param string $sMethod The type of request
+     * @param string $sUrl    The URL of the request
+     * @param array  $aData   Any data to send with the request (as JSON)
      *
      * @return \stdClass
      */
@@ -137,7 +148,7 @@ class EsConfig
     /**
      * Execute a GET request
      *
-     * @param  string $sUrl The URL to GET
+     * @param string $sUrl The URL to GET
      *
      * @return \stdClass
      */
@@ -151,8 +162,8 @@ class EsConfig
     /**
      * Execute a POST request
      *
-     * @param  string $sUrl  The URL to POST to
-     * @param  array  $aData An array of data to POST
+     * @param string $sUrl  The URL to POST to
+     * @param array  $aData An array of data to POST
      *
      * @return \stdClass
      */
@@ -166,8 +177,8 @@ class EsConfig
     /**
      * Execute a PUT request
      *
-     * @param  string $sUrl  The URL to PUT to
-     * @param  array  $aData An array of data to PUT
+     * @param string $sUrl  The URL to PUT to
+     * @param array  $aData An array of data to PUT
      *
      * @return \stdClass
      */
@@ -181,8 +192,8 @@ class EsConfig
     /**
      * Execute a DELETE request
      *
-     * @param  string $sUrl  The URL to DELETE to
-     * @param  array  $aData An array of data to DELETE
+     * @param string $sUrl  The URL to DELETE to
+     * @param array  $aData An array of data to DELETE
      *
      * @return \stdClass
      */
@@ -195,8 +206,9 @@ class EsConfig
 
     /**
      * Returns the configuration file
-     * @throws \Exception
+     *
      * @return \stdClass
+     * @throws \Exception
      */
     protected static function getConfig()
     {
@@ -224,7 +236,7 @@ class EsConfig
     /**
      * Returns the current environment
      *
-     * @param  array $aArgs The arguments passed to the script
+     * @param array $aArgs The arguments passed to the script
      *
      * @return string
      */
@@ -264,7 +276,7 @@ class EsConfig
     /**
      * Nuke the cluster
      *
-     * @param  array $aArgs The arguments passed to the script
+     * @param array $aArgs The arguments passed to the script
      *
      * @return void
      */
@@ -306,7 +318,7 @@ class EsConfig
     /**
      * Reset the cluster
      *
-     * @param  array $aArgs The arguments passed to the script
+     * @param array $aArgs The arguments passed to the script
      *
      * @return void
      */
@@ -384,9 +396,75 @@ class EsConfig
     // --------------------------------------------------------------------------
 
     /**
+     * Resets _ingest configurations
+     *
+     * @param $aArgs
+     */
+    protected static function resetIngest($aArgs)
+    {
+        self::writeLn('[Reset Ingest]');
+        self::writeLn();
+
+        try {
+
+            $oConfig = self::getConfig();
+            $sEnv    = self::getEnvironment($aArgs);
+
+            self::writeLn('Detected environment: ' . $sEnv);
+
+            if (empty($oConfig->host->{$sEnv})) {
+                throw new \Exception('No host defined for environment "' . $sEnv . '"', 1);
+            }
+
+            $sUrl = $oConfig->host->{$sEnv} . '/';
+            static::detectClientVersion($sUrl);
+
+            //  Pipelines
+            if (!empty($oConfig->_ingest->pipelines)) {
+                foreach ($oConfig->_ingest->pipelines as $oPipeline) {
+
+                    self::writeLn('Deleting pipeline [' . $oPipeline->name . ']');
+                    $oResponse = self::delete(
+                        $sUrl . '_ingest/pipeline/' . $oPipeline->name
+                    );
+                    if (!empty($oResponse->error)) {
+                        self::writeln('Failed: ' . $oResponse->error->type . ': ' . $oResponse->error->reason);
+                    } else {
+                        self::writeln('Success');
+                    }
+
+                    self::writeLn('Creating pipeline [' . $oPipeline->name . ']');
+                    $oResponse = self::put(
+                        $sUrl . '_ingest/pipeline/' . $oPipeline->name,
+                        $oPipeline->body
+                    );
+
+                    if (!empty($oResponse->error)) {
+                        self::writeln('Failed: ' . $oResponse->error->type . ': ' . $oResponse->error->reason);
+                    } else {
+                        self::writeln('Success');
+                    }
+
+                    self::writeLn();
+                }
+            } else {
+                self::writeLn('No pipelines to configure');
+                self::writeLn();
+            }
+
+        } catch (\Exception $e) {
+
+            self::writeLn('[ERROR: ' . $e->getMessage() . ']');
+            self::writeLn();
+        }
+    }
+
+    // --------------------------------------------------------------------------
+
+    /**
      * WArm the cluster
      *
-     * @param  array $aArgs The arguments passed to the script
+     * @param array $aArgs The arguments passed to the script
      *
      * @return void
      */
