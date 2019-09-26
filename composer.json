@@ -8,8 +8,21 @@
             "email": "pablo@hellopablo.co.uk"
         }
     ],
-    "require": {},
+    "require": {
+        "bamarni/composer-bin-plugin": "1.2.0"
+    },
     "bin": [
         "dist/esconfig"
-    ]
+    ],
+    "scripts": {
+        "post-install-cmd": [
+            "@composer bin all install --ansi"
+        ],
+        "post-update-cmd": [
+            "@composer bin all update --ansi"
+        ],
+        "build": [
+            "./scripts/build.sh"
+        ]
+    }
 }

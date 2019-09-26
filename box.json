@@ -1,6 +1,6 @@
 {
     "files": ["src/EsConfig.php"],
     "main": "bin/main",
-    "output": "dist/esconfig.phar",
+    "output": "dist/esconfig",
     "stub": true
 }
